@@ -20,6 +20,10 @@ avg_minutes = df.groupby("description_id")["minutes"].mean()
 
 df["avg_minutes_by_description"] = df["description_id"].map(avg_minutes)
 
+avg_machine = df.groupby("machine_id")["minutes"].mean()
+
+df["avg_minutes_by_machine"] = df["machine_id"].map(avg_machine)
+
 print("Nuevo shape después de limpiar:", df.shape)
 
 def categorize(minutes):
@@ -47,13 +51,14 @@ def categorize(minutes):
 
 df["severity"] = df["minutes"].apply(categorize)
 
-# Features
+
+
 X = df.drop(columns=["minutes", "target", "severity"], errors="ignore")
 y = df["severity"]
 
 # Columnas
 categorical_cols = ["machine_id", "area_id", "description_id", "programmed_stop_id"]
-numeric_cols = ["hour", "day_of_week", "avg_minutes_by_description"]
+numeric_cols = ["hour", "day_of_week", "avg_minutes_by_description", "avg_minutes_by_machine"]
 
 # Preprocesamiento
 preprocessor = ColumnTransformer(
@@ -77,10 +82,17 @@ pipeline = Pipeline([
     ("model", model)
 ])
 
-# Split
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+
+df = df.sort_values(by=["day_of_week", "hour"])
+
+
+split_index = int(len(df) * 0.8)
+
+X_train = X.iloc[:split_index]
+X_test = X.iloc[split_index:]
+
+y_train = y.iloc[:split_index]
+y_test = y.iloc[split_index:]
 
 # Entrenar
 pipeline.fit(X_train, y_train)
