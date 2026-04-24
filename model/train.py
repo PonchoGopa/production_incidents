@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import joblib
 import os
 
 from sklearn.model_selection import train_test_split
@@ -106,6 +107,13 @@ from sklearn.metrics import classification_report
 y_pred = pipeline.predict(X_test)
 
 print(classification_report(y_test, y_pred))
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+model_path = os.path.join(BASE_DIR, "model.pkl")
+
+joblib.dump(pipeline, model_path)
+
+print(f"Modelo guardado en: {model_path}")
 
 #print(f"MAE: {mae:.2f} minutos")
 #print(df.describe())
