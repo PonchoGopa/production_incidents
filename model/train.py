@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 file_path = os.path.join(BASE_DIR, "dataset.csv")
@@ -24,6 +24,24 @@ df["avg_minutes_by_description"] = df["description_id"].map(avg_minutes)
 avg_machine = df.groupby("machine_id")["minutes"].mean()
 
 df["avg_minutes_by_machine"] = df["machine_id"].map(avg_machine)
+
+# combinación máquina + descripción
+avg_combo = df.groupby(["machine_id", "description_id"])["minutes"].mean()
+
+df["avg_minutes_by_combo"] = df.set_index(
+    ["machine_id", "description_id"]
+).index.map(avg_combo)
+
+avg_desc_path = os.path.join(BASE_DIR, "avg_minutes_by_description.pkl")
+avg_machine_path = os.path.join(BASE_DIR, "avg_minutes_by_machine.pkl")
+
+joblib.dump(avg_minutes.to_dict(), avg_desc_path)
+joblib.dump(avg_machine.to_dict(), avg_machine_path)
+
+print("Archivos guardados en:")
+print(avg_desc_path)
+print(avg_machine_path)
+
 
 print("Nuevo shape después de limpiar:", df.shape)
 
@@ -59,7 +77,7 @@ y = df["severity"]
 
 # Columnas
 categorical_cols = ["machine_id", "area_id", "description_id", "programmed_stop_id"]
-numeric_cols = ["hour", "day_of_week", "avg_minutes_by_description", "avg_minutes_by_machine"]
+numeric_cols = ["hour", "day_of_week", "avg_minutes_by_description", "avg_minutes_by_machine","avg_minutes_by_combo"]
 
 # Preprocesamiento
 preprocessor = ColumnTransformer(
@@ -69,11 +87,10 @@ preprocessor = ColumnTransformer(
     ]
 )
 
-# Modelo
-model = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=15,
-    min_samples_split=5,
+model = GradientBoostingClassifier(
+    n_estimators=300,
+    learning_rate=0.05,
+    max_depth=3,
     random_state=42
 )
 

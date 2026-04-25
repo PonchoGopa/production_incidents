@@ -10,6 +10,12 @@ model_path = os.path.join(BASE_DIR, "model.pkl")
 
 model = joblib.load(model_path)
 
+avg_desc_path = os.path.join(BASE_DIR, "avg_minutes_by_description.pkl")
+avg_machine_path = os.path.join(BASE_DIR, "avg_minutes_by_machine.pkl")
+
+avg_minutes_by_description = joblib.load(avg_desc_path)
+avg_minutes_by_machine = joblib.load(avg_machine_path)
+
 app = FastAPI()
 
 # Esquema de entrada
@@ -33,11 +39,11 @@ def predict(data: Incident):
         "hour": data.hour,
         "day_of_week": data.day_of_week
     }])
+    desc_id = str(data.description_id)
+    machine_id = str(data.machine_id)
 
-    # IMPORTANTE: recrear features
-    # (mismo nombre que en entrenamiento)
-    input_df["avg_minutes_by_description"] = 0
-    input_df["avg_minutes_by_machine"] = 0
+    input_df["avg_minutes_by_description"] = avg_minutes_by_description.get(desc_id, 0)
+    input_df["avg_minutes_by_machine"] = avg_minutes_by_machine.get(machine_id, 0)
 
     prediction = model.predict(input_df)[0]
 
