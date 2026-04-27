@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingRegressor
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 file_path = os.path.join(BASE_DIR, "dataset.csv")
@@ -46,21 +46,6 @@ print(avg_machine_path)
 print("Nuevo shape después de limpiar:", df.shape)
 
 def categorize(minutes):
-    if minutes <= 20:
-        return "baja"
-    elif minutes <= 80:
-        return "media"
-    else:
-        return "alta"
-
-df["severity"] = df["minutes"].apply(categorize)
-
-# Target (log transform)
-df["target"] = np.log1p(df["minutes"])
-
-p95 = df["minutes"].quantile(0.95)
-df = df[df["minutes"] <= p95]
-def categorize(minutes):
     if minutes <= 30:
         return "baja"
     elif minutes <= 90:
@@ -72,8 +57,9 @@ df["severity"] = df["minutes"].apply(categorize)
 
 
 
-X = df.drop(columns=["minutes", "target", "severity"], errors="ignore")
-y = df["severity"]
+X = df.drop(columns=["minutes"], errors="ignore")
+y = df["minutes"]
+y_log = np.log1p(y)
 
 # Columnas
 categorical_cols = ["machine_id", "area_id", "description_id", "programmed_stop_id"]
@@ -87,7 +73,7 @@ preprocessor = ColumnTransformer(
     ]
 )
 
-model = GradientBoostingClassifier(
+model = GradientBoostingRegressor(
     n_estimators=300,
     learning_rate=0.05,
     max_depth=3,
@@ -106,24 +92,67 @@ df = df.sort_values(by=["day_of_week", "hour"])
 
 split_index = int(len(df) * 0.8)
 
+y_train = y_log.iloc[:split_index]   
+y_test = y.iloc[split_index:]        
+
 X_train = X.iloc[:split_index]
 X_test = X.iloc[split_index:]
-
-y_train = y.iloc[:split_index]
-y_test = y.iloc[split_index:]
 
 # Entrenar
 pipeline.fit(X_train, y_train)
 
 # Predicción
-y_pred = pipeline.predict(X_test)
+y_pred_log = pipeline.predict(X_test)
+y_pred = np.expm1(y_pred_log)
+y_pred = np.clip(y_pred, 0, None)
 
+print("Predicciones ejemplo:", y_pred[:5])
 
-from sklearn.metrics import classification_report
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-y_pred = pipeline.predict(X_test)
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-print(classification_report(y_test, y_pred))
+print(f"MAE: {mae:.2f} minutos")
+print(f"RMSE: {rmse:.2f} minutos")
+
+# ==============================
+# DIAGNÓSTICO DEL MODELO
+# ==============================
+
+df_results = pd.DataFrame({
+    "y_true": y_test.values,
+    "y_pred": y_pred
+})
+
+def categorize(minutes):
+    if minutes <= 20:
+        return "baja"
+    elif minutes <= 80:
+        return "media"
+    else:
+        return "alta"
+
+df_results["real_category"] = df_results["y_true"].apply(categorize)
+
+# Error absoluto
+df_results["error"] = abs(df_results["y_true"] - df_results["y_pred"])
+
+print("\nError promedio por categoría real:")
+print(df_results.groupby("real_category")["error"].mean())
+
+# Distribución
+print("\nDistribución REAL:")
+print(pd.Series(y_test).describe())
+
+print("\nDistribución PREDICHA:")
+print(pd.Series(y_pred).describe())
+
+# Error relativo
+df_results["relative_error"] = df_results["error"] / (df_results["y_true"] + 1)
+
+print("\nError relativo promedio:")
+print(df_results["relative_error"].mean())
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 model_path = os.path.join(BASE_DIR, "model.pkl")
